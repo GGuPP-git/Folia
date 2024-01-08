@@ -1,30 +1,32 @@
-name: Patch and Build
-
-on:
-  push:
-    branches: [ "**" ]
-  pull_request:
-
+name: Generate Jars
+on: [ push, pull_request ]
+env:
+  version: '1.20.1'
+  branch: ver/1.20.1
 jobs:
-  build:
-    # Only run on PRs if the source branch is on someone else's repo
-    if: ${{ github.event_name != 'pull_request' || github.repository != github.event.pull_request.head.repo.full_name }}
+  paperclip:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Git Repository
         uses: actions/checkout@v3
-      - name: Validate Gradle wrapper
-        uses: gradle/wrapper-validation-action@v1
-      - name: Setup Gradle
-        uses: gradle/gradle-build-action@v2
       - name: Set up JDK
-        uses: actions/setup-java@v3
+        uses: graalvm/setup-graalvm@v1
         with:
-          distribution: 'temurin'
           java-version: '17'
+          cache: 'gradle'
+          distribution: 'graalvm'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          version: 'latest'
       - name: Configure Git User Details
-        run: git config --global user.email "actions@github.com" && git config --global user.name "Github Actions"
+        run: |
+            git config --global user.email "actions@github.com" && git config --global user.name "Github Actions"
+            echo "workflow=$GITHUB_RUN_NUMBER" >> $GITHUB_ENV
       - name: Apply Patches
-        run: ./gradlew applyPatches
-      - name: Build
-        run: ./gradlew build
+        run: ./gradlew applyPatches --stacktrace
+      - name: Build Paperclip jar
+        run: ./gradlew createReobfPaperclipJar --stacktrace
+      - name: Upload Paperclip jar
+        uses: actions/upload-artifact@v2
+        with:
+          name: folia.jar
+          path: build/libs/folia-*-reobf.jar
